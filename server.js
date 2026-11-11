@@ -107,7 +107,7 @@ async function enviarMensagem1(contaId, destinatario, nome) {
           payload: {
             template_type: "button",
             text: montarTexto(c.mensagem1.texto, nome),
-            buttons: [{ type: "postback", title: c.mensagem1.botao, payload: "PASSO_2" }],
+            buttons: [{ type: "postback", title: c.mensagem1.botao, payload: "PASSO_2:" + contaId }],
           },
         },
       },
@@ -160,7 +160,7 @@ async function tratarMensagem(contaId, ev) {
   // clique no botão da mensagem 1
   if (ev.postback) {
     if (jaVisto(`p:${ev.postback.mid || usuarioId + ev.timestamp}`)) return;
-    if (ev.postback.payload === "PASSO_2") {
+    if (ev.postback.payload === "PASSO_2:" + contaId) {
       log(`[${c.nome}] ${usuarioId} clicou em "${c.mensagem1.botao}"`);
       await enviarMensagem2(contaId, usuarioId);
       log(`[${c.nome}] mensagem 2 enviada para ${usuarioId}`);
