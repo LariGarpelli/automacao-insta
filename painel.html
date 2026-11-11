@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel · Automação Lari</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --magenta: #ed48b5; --rosa: #ffdbeb; --ouro: #f1ab25; --creme: #f9efc7;
+    --tinta: #1d1a1c; --suave: #6f6870; --linha: #eadfe4; --fundo: #fffaf6; --branco: #fff;
+    --ok: #2f9e68; --raio: 18px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Poppins, system-ui, sans-serif; background: var(--fundo); color: var(--tinta); }
+  header { padding: 28px 20px 0; max-width: 1080px; margin: 0 auto; }
+  .marca { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; color: var(--suave); }
+  .marca b { width: 10px; height: 10px; border-radius: 50%; background: var(--magenta); display: inline-block; }
+  h1 { font-size: clamp(26px, 5vw, 36px); margin: 10px 0 4px; letter-spacing: -0.02em; }
+  h1 em { font-style: normal; background: linear-gradient(transparent 60%, var(--rosa) 60%); }
+  .sub { color: var(--suave); margin: 0 0 22px; font-size: 14px; }
+  nav { display: flex; gap: 6px; border-bottom: 1px solid var(--linha); overflow-x: auto; }
+  nav button { border: 0; background: none; font: inherit; font-weight: 500; padding: 12px 14px; color: var(--suave); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav button.ativo { color: var(--tinta); border-color: var(--magenta); }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+  .aba { display: none; } .aba.ativo { display: block; }
+  .grade { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .cartao { background: var(--branco); border: 1px solid var(--linha); border-radius: var(--raio); padding: 20px; }
+  .perfil { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .perfil h3 { margin: 0; font-size: 16px; }
+  .selo { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--rosa); color: #a3256f; font-weight: 500; }
+  .selo.off { background: #eee; color: #777; }
+  .funil { display: grid; gap: 10px; }
+  .etapa .rot { display: flex; justify-content: space-between; font-size: 13px; color: var(--suave); margin-bottom: 4px; }
+  .etapa .rot b { color: var(--tinta); font-size: 15px; }
+  .barra { height: 10px; background: #f4ecef; border-radius: 99px; overflow: hidden; }
+  .barra i { display: block; height: 100%; background: var(--magenta); border-radius: 99px; transition: width .4s; }
+  .etapa:nth-child(2) .barra i { background: #f27cc8; }
+  .etapa:nth-child(3) .barra i { background: var(--ouro); }
+  .rodape { margin-top: 14px; font-size: 13px; color: var(--suave); display: flex; justify-content: space-between; }
+  .total { display: flex; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .total .cartao { flex: 1; min-width: 150px; padding: 16px 20px; }
+  .total .n { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+  .total .l { font-size: 13px; color: var(--suave); }
+  /* automações */
+  details.cartao { padding: 0; margin-bottom: 14px; }
+  details summary { list-style: none; cursor: pointer; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary span.seta { transition: transform .2s; color: var(--suave); }
+  details[open] summary span.seta { transform: rotate(90deg); }
+  .form { padding: 0 20px 20px; display: grid; gap: 18px; }
+  fieldset { border: 1px solid var(--linha); border-radius: 14px; padding: 14px 16px 16px; margin: 0; display: grid; gap: 12px; }
+  legend { font-weight: 600; font-size: 13px; padding: 0 6px; color: #a3256f; }
+  label { display: grid; gap: 5px; font-size: 13px; color: var(--suave); }
+  input[type=text], input[type=url], textarea { font: inherit; font-size: 14px; color: var(--tinta); border: 1px solid var(--linha); border-radius: 10px; padding: 10px 12px; background: #fffdfc; width: 100%; }
+  textarea { min-height: 110px; resize: vertical; line-height: 1.45; }
+  input:focus, textarea:focus { outline: 2px solid var(--rosa); border-color: var(--magenta); }
+  .dica { font-size: 12px; color: #9a929b; }
+  .linha2 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 620px) { .linha2 { grid-template-columns: 1fr; } }
+  .chave { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--tinta); }
+  .chave small { display: block; color: var(--suave); font-size: 12px; }
+  .chave input { appearance: none; width: 44px; height: 26px; border-radius: 99px; background: #ddd; position: relative; cursor: pointer; flex: none; transition: background .2s; }
+  .chave input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .chave input:checked { background: var(--magenta); }
+  .chave input:checked::after { left: 21px; }
+  .acoes { display: flex; gap: 10px; align-items: center; }
+  button.pri { font: inherit; font-weight: 600; background: var(--tinta); color: #fff; border: 0; border-radius: 99px; padding: 11px 22px; cursor: pointer; }
+  button.pri:disabled { opacity: .5; }
+  button.sec { font: inherit; font-weight: 500; background: var(--branco); color: var(--tinta); border: 1px solid var(--linha); border-radius: 99px; padding: 9px 16px; cursor: pointer; text-decoration: none; }
+  .salvo { font-size: 13px; color: var(--ok); }
+  .previa { background: #f6f1f3; border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+  .bolha { background: #fff; border: 1px solid #eee; border-radius: 18px; padding: 12px 14px; max-width: 320px; font-size: 14px; white-space: pre-wrap; }
+  .bolha .bt { margin-top: 10px; text-align: center; font-weight: 600; border-top: 1px solid #eee; padding-top: 9px; }
+  /* contatos */
+  .filtros { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .filtros input, .filtros select { font: inherit; font-size: 14px; border: 1px solid var(--linha); border-radius: 99px; padding: 9px 14px; background: var(--branco); }
+  .filtros input { flex: 1; min-width: 180px; }
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-weight: 500; color: var(--suave); font-size: 12px; padding: 10px 12px; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+  td { padding: 12px; border-bottom: 1px solid #f3ecef; white-space: nowrap; }
+  td .tag { font-size: 11px; background: var(--creme); color: #8a5a00; padding: 3px 8px; border-radius: 99px; margin-right: 4px; }
+  .pts { display: flex; gap: 4px; }
+  .pts i { width: 9px; height: 9px; border-radius: 50%; background: #eadfe4; }
+  .pts i.on { background: var(--magenta); }
+  .vazio { text-align: center; color: var(--suave); padding: 40px 10px; font-size: 14px; }
+  .aviso { background: var(--creme); border-radius: 14px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="marca"><b></b> Automação Lari</div>
+  <h1>Seu <em>painel</em> de mensagens</h1>
+  <p class="sub" id="atualizado">Carregando…</p>
+  <nav>
+    <button class="ativo" data-aba="numeros">Números</button>
+    <button data-aba="automacoes">Automações</button>
+    <button data-aba="contatos">Contatos</button>
+  </nav>
+</header>
+<main>
+  <section class="aba ativo" id="numeros">
+    <div class="total" id="totais"></div>
+    <div class="grade" id="funis"></div>
+  </section>
+
+  <section class="aba" id="automacoes">
+    <div id="listaAutomacoes"></div>
+  </section>
+
+  <section class="aba" id="contatos">
+    <div class="filtros">
+      <input id="busca" type="search" placeholder="Buscar por @ ou nome">
+      <select id="fPerfil"><option value="">Todos os perfis</option></select>
+      <select id="fEtapa">
+        <option value="">Todas as etapas</option>
+        <option value="gatilho">Comentou / mandou</option>
+        <option value="botao">Clicou no botão</option>
+        <option value="link">Clicou no link</option>
+      </select>
+      <a class="sec" href="/painel/api/contatos.csv">Baixar planilha</a>
+    </div>
+    <div class="cartao tabela"><table>
+      <thead><tr><th>Contato</th><th>Perfil</th><th>Origem</th><th>Etapas</th><th>Etiquetas</th><th>Último contato</th></tr></thead>
+      <tbody id="tbContatos"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script>
+let D = null;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const quando = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button, .aba").forEach((x) => x.classList.remove("ativo"));
+  b.classList.add("ativo"); $("#" + b.dataset.aba).classList.add("ativo");
+});
+
+async function carregar() {
+  const r = await fetch("/painel/api/dados", { cache: "no-store" });
+  D = await r.json();
+  $("#atualizado").textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  desenharNumeros(); desenharContatos();
+  if (!$("#listaAutomacoes").children.length) desenharAutomacoes();
+}
+
+function desenharNumeros() {
+  const ids = Object.keys(D.contas);
+  const soma = (k) => ids.reduce((s, id) => s + D.numeros[id][k], 0);
+  $("#totais").innerHTML = [
+    ["gatilho", "pessoas ativaram"], ["botao", "clicaram no botão"], ["link", "clicaram no link"], ["hoje", "contatos hoje"],
+  ].map(([k, l]) => `<div class="cartao"><div class="n">${soma(k)}</div><div class="l">${l}</div></div>`).join("");
+  $("#funis").innerHTML = ids.map((id) => {
+    const c = D.contas[id], n = D.numeros[id], topo = Math.max(n.gatilho, 1);
+    const etapas = c.direto
+      ? [["Comentou / mandou", n.gatilho], ["Clicou no link", n.link]]
+      : [["Comentou / mandou", n.gatilho], ["Clicou em “" + esc(c.mensagem1.botao) + "”", n.botao], ["Clicou no link", n.link]];
+    return `<div class="cartao">
+      <div class="perfil"><h3>@${esc(c.nome)}</h3><span class="selo ${c.ativo === false ? "off" : ""}">${c.ativo === false ? "pausada" : "ativa"}</span></div>
+      <div class="funil">${etapas.map(([l, v]) => `<div class="etapa"><div class="rot">${l}<b>${v}</b></div><div class="barra"><i style="width:${pct(v, topo)}%"></i></div></div>`).join("")}</div>
+      <div class="rodape"><span>Conversão até o link</span><b>${pct(n.link, n.gatilho)}%</b></div>
+    </div>`;
+  }).join("");
+}
+
+function desenharAutomacoes() {
+  $("#listaAutomacoes").innerHTML = Object.entries(D.contas).map(([id, c]) => `
+    <details class="cartao" data-id="${id}">
+      <summary><div><b>@${esc(c.nome)}</b><div class="dica">${esc((c.gatilhos.comentario || []).join(", ") || "sem palavra")} · ${esc(c.etiqueta)}</div></div><span class="seta">›</span></summary>
+      <div class="form">
+        ${D.tokens[id] ? "" : `<div class="aviso">Esse perfil está sem token no EasyPanel, então a automação não envia nada.</div>`}
+        <div class="chave"><span>Automação ligada<small>Desligue para pausar este perfil sem apagar nada.</small></span><input type="checkbox" name="ativo" ${c.ativo === false ? "" : "checked"}></div>
+        <div class="chave"><span>Mandar o link direto<small>Pula a primeira mensagem e o botão. Use se o clique não estiver chegando.</small></span><input type="checkbox" name="direto" ${c.direto ? "checked" : ""}></div>
+        <fieldset><legend>Palavras-chave</legend>
+          <div class="dica">Separe por vírgula. Vale maiúscula, minúscula e a palavra no meio de uma frase.</div>
+          <label>Comentário em post ou Reel<input type="text" name="g_comentario" value="${esc((c.gatilhos.comentario || []).join(", "))}"></label>
+          <div class="linha2">
+            <label>Resposta ao Story<input type="text" name="g_story" value="${esc((c.gatilhos.story || []).join(", "))}"></label>
+            <label>Direct (DM)<input type="text" name="g_dm" value="${esc((c.gatilhos.dm || []).join(", "))}"></label>
+          </div>
+        </fieldset>
+        <fieldset class="m1"><legend>Mensagem 1</legend>
+          <label>Texto<textarea name="m1_texto">${esc(c.mensagem1.texto)}</textarea></label>
+          <div class="dica">Use {nome} para o primeiro nome da pessoa (funciona em DM e Story).</div>
+          <label>Botão (até 20 letras)<input type="text" maxlength="20" name="m1_botao" value="${esc(c.mensagem1.botao)}"></label>
+        </fieldset>
+        <fieldset><legend>Mensagem 2 (com o link)</legend>
+          <label>Texto<textarea name="m2_texto">${esc(c.mensagem2.texto)}</textarea></label>
+          <div class="linha2">
+            <label>Botão (até 20 letras)<input type="text" maxlength="20" name="m2_botao" value="${esc(c.mensagem2.botao)}"></label>
+            <label>Etiqueta de quem clica<input type="text" name="etiqueta" value="${esc(c.etiqueta)}"></label>
+          </div>
+          <label>Link<input type="url" name="m2_link" value="${esc(c.mensagem2.link)}"></label>
+        </fieldset>
+        <fieldset><legend>Resposta pública no comentário</legend>
+          <label>Frases (uma por linha, o sistema sorteia)<textarea name="respostas" style="min-height:80px">${esc((c.respostaComentario || []).join("\n"))}</textarea></label>
+          <div class="dica">Deixe vazio para não responder o comentário.</div>
+        </fieldset>
+        <div class="previa"><div class="dica">Prévia no direct</div><div class="bolhas"></div></div>
+        <div class="acoes"><button class="pri">Salvar</button><span class="salvo"></span></div>
+      </div>
+    </details>`).join("");
+
+  document.querySelectorAll("details[data-id]").forEach((el) => {
+    const atualizarPrevia = () => {
+      const f = ler(el);
+      el.querySelector(".m1").style.display = f.direto ? "none" : "";
+      const b = (t, bt) => `<div class="bolha">${esc(t.replace("{nome}", "Ana"))}<div class="bt">${esc(bt)}</div></div>`;
+      el.querySelector(".bolhas").innerHTML = (f.direto ? "" : b(f.mensagem1.texto, f.mensagem1.botao)) + b(f.mensagem2.texto, f.mensagem2.botao);
+    };
+    el.addEventListener("input", atualizarPrevia);
+    atualizarPrevia();
+    el.querySelector("button.pri").onclick = async () => {
+      const bt = el.querySelector("button.pri"), ok = el.querySelector(".salvo");
+      bt.disabled = true; ok.textContent = "";
+      const r = await fetch("/painel/api/automacao/" + el.dataset.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ler(el)) });
+      bt.disabled = false;
+      if (r.ok) { D.contas[el.dataset.id] = (await r.json()).automacao; ok.style.color = ""; ok.textContent = "Salvo ✓ já está valendo"; desenharNumeros(); }
+      else { ok.style.color = "#c33"; ok.textContent = "Não salvou, tente de novo"; }
+    };
+  });
+}
+
+function ler(el) {
+  const v = (n) => el.querySelector(`[name=${n}]`);
+  return {
+    ativo: v("ativo").checked, direto: v("direto").checked,
+    gatilhos: { comentario: v("g_comentario").value, story: v("g_story").value, dm: v("g_dm").value },
+    mensagem1: { texto: v("m1_texto").value, botao: v("m1_botao").value },
+    mensagem2: { texto: v("m2_texto").value, botao: v("m2_botao").value, link: v("m2_link").value },
+    etiqueta: v("etiqueta").value,
+    respostaComentario: v("respostas").value.split("\n").map((s) => s.trim()).filter(Boolean),
+  };
+}
+
+function desenharContatos() {
+  const sel = $("#fPerfil");
+  if (sel.options.length === 1) for (const [id, c] of Object.entries(D.contas)) sel.add(new Option("@" + c.nome, id));
+  const q = $("#busca").value.toLowerCase().replace("@", ""), fp = sel.value, fe = $("#fEtapa").value;
+  const lista = D.contatos
+    .filter((c) => (!fp || c.conta === fp) && (!fe || c.etapas[fe]) && (!q || (c.username || "").toLowerCase().includes(q) || (c.nome || "").toLowerCase().includes(q)))
+    .sort((a, b) => (b.ultimo || "").localeCompare(a.ultimo || ""));
+  $("#tbContatos").innerHTML = lista.length ? lista.map((c) => `<tr>
+      <td>${c.username ? `<a href="https://instagram.com/${esc(c.username)}" target="_blank" rel="noopener">@${esc(c.username)}</a>` : `<span class="dica">ID ${esc(c.id)}</span>`}${c.nome ? `<div class="dica">${esc(c.nome)}</div>` : ""}</td>
+      <td>@${esc(D.contas[c.conta] ? D.contas[c.conta].nome : c.conta)}</td>
+      <td>${esc(c.origem || "")}</td>
+      <td><div class="pts" title="comentou · botão · link"><i class="${c.etapas.gatilho ? "on" : ""}"></i><i class="${c.etapas.botao ? "on" : ""}"></i><i class="${c.etapas.link ? "on" : ""}"></i></div></td>
+      <td>${c.etiquetas.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</td>
+      <td>${quando(c.ultimo)}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="vazio">Nenhum contato ainda. Eles aparecem aqui assim que alguém comentar a palavra-chave.</td></tr>`;
+}
+["#busca", "#fPerfil", "#fEtapa"].forEach((s) => $(s).addEventListener("input", desenharContatos));
+
+carregar();
+setInterval(() => document.visibilityState === "visible" && carregar(), 30000);
+</script>
+</body>
+</html>

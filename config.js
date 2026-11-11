@@ -6,6 +6,8 @@ module.exports = {
   // @larigarpelli — Carrossel Magnético
   "17841407543116416": {
     nome: "larigarpelli",
+    ativo: true,
+    direto: false,
     gatilhos: {
       comentario: ["carrossel"],
       story: ["estrela"],
@@ -24,11 +26,14 @@ module.exports = {
       link: "https://larissagarpelli.com/carrosselmagnetico/",
     },
     etiqueta: "INTERESSEcarrossel",
+    respostaComentario: ["Te mandei no direct! ✨", "Corre no direct que te mandei 💌", "Acabei de te mandar no direct ✨"],
   },
 
   // @lari_canva — Box Criativo
   "17841462348416829": {
     nome: "lari_canva",
+    ativo: true,
+    direto: false,
     gatilhos: {
       comentario: ["box"],
       story: ["box"],
@@ -47,11 +52,14 @@ module.exports = {
       link: "https://larissagarpelli.com/boxcriativo/",
     },
     etiqueta: "INTERESSEBOX",
+    respostaComentario: ["Te mandei no direct! ✨", "Corre no direct que te mandei 💌", "Acabei de te mandar no direct ✨"],
   },
 
   // @ia.mentalidade — Mentor da Mente
   "17841474167748137": {
     nome: "ia.mentalidade",
+    ativo: true,
+    direto: false,
     gatilhos: {
       comentario: ["mente"],
       story: ["mente"],
@@ -71,5 +79,6 @@ module.exports = {
       link: "https://www.mentordamente.com.br/ia/",
     },
     etiqueta: "INTERESSEMENTE",
+    respostaComentario: ["Te mandei no direct! ✨", "Corre no direct que te mandei 💌", "Acabei de te mandar no direct ✨"],
   },
 };
