@@ -12,7 +12,13 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "";
 const APP_SECRET = process.env.APP_SECRET || "";
 const BASE_URL = (process.env.BASE_URL || "").replace(/\/$/, "");
 const DATA_DIR = process.env.DATA_DIR || "/data";
-const API = "https://graph.instagram.com/v23.0";
+// Tokens do "login do Instagram" começam com IG → graph.instagram.com.
+// Tokens do "login unificado" (token de usuário do sistema, começa com EAA) → graph.facebook.com.
+function apiDe(token) {
+  return token.startsWith("IG")
+    ? "https://graph.instagram.com/v23.0"
+    : "https://graph.facebook.com/v23.0";
+}
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const ARQ_ETIQUETAS = path.join(DATA_DIR, "etiquetas.csv");
@@ -27,7 +33,8 @@ function log(...args) {
 }
 
 function tokenDe(contaId) {
-  return process.env[`TOKEN_${contaId}`] || "";
+  // remove espaços e aspas que às vezes vêm junto ao colar
+  return (process.env[`TOKEN_${contaId}`] || "").trim().replace(/^["']|["']$/g, "");
 }
 
 // minúsculas, sem acento, só letras/números
@@ -60,7 +67,7 @@ function jaVisto(id) {
 async function chamarApi(contaId, caminho, { method = "GET", body } = {}) {
   const token = tokenDe(contaId);
   if (!token) throw new Error(`sem TOKEN_${contaId}`);
-  const res = await fetch(`${API}${caminho}`, {
+  const res = await fetch(`${apiDe(token)}${caminho}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
@@ -272,6 +279,7 @@ server.listen(PORT, () => {
   if (!VERIFY_TOKEN) log("AVISO: VERIFY_TOKEN não definido");
   if (!APP_SECRET) log("AVISO: APP_SECRET não definido — assinaturas não serão verificadas");
   for (const [id, c] of Object.entries(contas)) {
-    log(`perfil @${c.nome}: ${tokenDe(id) ? "token ok" : "SEM TOKEN (TOKEN_" + id + ")"}`);
+    const t = tokenDe(id);
+    log(`perfil @${c.nome}: ${t ? `token ok (${t.slice(0, 3)}…, ${t.length} caracteres, ${apiDe(t).split("/")[2]})` : "SEM TOKEN (TOKEN_" + id + ")"}`);
   }
 });
