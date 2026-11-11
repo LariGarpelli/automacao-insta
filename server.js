@@ -148,7 +148,14 @@ async function tratarComentario(contaId, valor) {
   if (jaVisto(`c:${valor.id}`)) return;
   log(`[${c.nome}] comentário de @${autor.username || autor.id}: "${valor.text}"`);
   await enviarMensagem1(contaId, { comment_id: valor.id }, "");
-  log(`[${c.nome}] mensagem 1 enviada (comentário ${valor.id})`);
+  log(`[${c.nome}] mensagem 1 enviada (comentário ${valor.id})`);     try {
+       const frases = c.respostaComentario || ["Te mandei no direct! ✨", "Corre no direct que te mandei 💌", "Acabei de te mandar no direct ✨"];
+       const frase = frases[Math.floor(Math.random() * frases.length)];
+       await chamarApi(contaId, `/${valor.id}/replies`, { method: "POST", body: { message: frase } });
+       log(`[${c.nome}] respondeu o comentário ${valor.id}`);
+     } catch (e) {
+       log(`[${c.nome}] não conseguiu responder o comentário: ${e.message}`);
+     }
 }
 
 async function tratarMensagem(contaId, ev) {
