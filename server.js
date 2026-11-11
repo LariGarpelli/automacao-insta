@@ -29,6 +29,20 @@ function lerJson(arq, padrao) {
   }
 }
 let contas = lerJson(ARQ_AUTOMACOES, null) || require("./config");
+
+// Formato: contas[contaId] = { nome, automacoes: [ { id, nome, ativo, direto, gatilhos, mensagem1, mensagem2, etiqueta, respostaComentario } ] }
+// Converte o formato antigo (uma automação por perfil) sem perder nada.
+for (const [id, c] of Object.entries(contas)) {
+  if (!Array.isArray(c.automacoes)) {
+    const { nome, ...resto } = c;
+    contas[id] = { nome, automacoes: [{ id: "a1", nome: "Principal", ...resto }] };
+  }
+}
+function acharAutomacao(contaId, autoId) {
+  const c = contas[contaId];
+  if (!c) return null;
+  return c.automacoes.find((a) => a.id === autoId) || (autoId ? null : c.automacoes[0]) || null;
+}
 function salvarAutomacoes() {
   fs.writeFileSync(ARQ_AUTOMACOES, JSON.stringify(contas, null, 2));
 }
@@ -40,7 +54,7 @@ function salvarContatos() {
   clearTimeout(salvarTimer);
   salvarTimer = setTimeout(() => fs.writeFile(ARQ_CONTATOS, JSON.stringify(contatos), () => {}), 1000);
 }
-function registrar(contaId, usuarioId, etapa, extra = {}) {
+function registrar(contaId, autoId, usuarioId, etapa, extra = {}) {
   if (!usuarioId) return;
   const chave = `${contaId}:${usuarioId}`;
   const agora = new Date().toISOString();
@@ -50,6 +64,9 @@ function registrar(contaId, usuarioId, etapa, extra = {}) {
   if (extra.nome) ct.nome = extra.nome;
   if (extra.origem && !ct.origem) ct.origem = extra.origem;
   ct.etapas[etapa] = (ct.etapas[etapa] || 0) + 1;
+  ct.autos ||= {};
+  const pa = (ct.autos[autoId] ||= {});
+  pa[etapa] = (pa[etapa] || 0) + 1;
   if (extra.etiqueta && !ct.etiquetas.includes(extra.etiqueta)) ct.etiquetas.push(extra.etiqueta);
   salvarContatos();
 }
@@ -124,8 +141,7 @@ function montarTexto(modelo, nome) {
 
 // ---------- envio das mensagens ----------
 
-async function enviarMensagem1(contaId, destinatario, nome) {
-  const c = contas[contaId];
+async function enviarMensagem1(contaId, a, destinatario, nome) {
   return chamarApi(contaId, `/${contaId}/messages`, {
     method: "POST",
     body: {
@@ -135,8 +151,8 @@ async function enviarMensagem1(contaId, destinatario, nome) {
           type: "template",
           payload: {
             template_type: "button",
-            text: montarTexto(c.mensagem1.texto, nome),
-            buttons: [{ type: "postback", title: c.mensagem1.botao, payload: "PASSO_2:" + contaId }],
+            text: montarTexto(a.mensagem1.texto, nome),
+            buttons: [{ type: "postback", title: a.mensagem1.botao, payload: `PASSO_2:${contaId}:${a.id}` }],
           },
         },
       },
@@ -144,9 +160,8 @@ async function enviarMensagem1(contaId, destinatario, nome) {
   });
 }
 
-async function enviarMensagem2(contaId, usuarioId, destinatario, nome) {
-  const c = contas[contaId];
-  const link = BASE_URL && usuarioId ? `${BASE_URL}/r/${contaId}/${usuarioId}` : c.mensagem2.link;
+async function enviarMensagem2(contaId, a, usuarioId, destinatario, nome) {
+  const link = BASE_URL && usuarioId ? `${BASE_URL}/r/${contaId}/${a.id}/${usuarioId}` : a.mensagem2.link;
   return chamarApi(contaId, `/${contaId}/messages`, {
     method: "POST",
     body: {
@@ -156,8 +171,8 @@ async function enviarMensagem2(contaId, usuarioId, destinatario, nome) {
           type: "template",
           payload: {
             template_type: "button",
-            text: montarTexto(c.mensagem2.texto, nome),
-            buttons: [{ type: "web_url", title: c.mensagem2.botao, url: link }],
+            text: montarTexto(a.mensagem2.texto, nome),
+            buttons: [{ type: "web_url", title: a.mensagem2.botao, url: link }],
           },
         },
       },
@@ -170,15 +185,16 @@ async function enviarMensagem2(contaId, usuarioId, destinatario, nome) {
 async function tratarComentario(contaId, valor) {
   const c = contas[contaId];
   const autor = valor.from || {};
-  if (!c || c.ativo === false || autor.id === contaId) return;
-  if (!temPalavra(valor.text, c.gatilhos.comentario)) return;
+  if (!c || autor.id === contaId) return;
+  const a = c.automacoes.find((x) => x.ativo !== false && temPalavra(valor.text, x.gatilhos.comentario));
+  if (!a) return;
   if (jaVisto(`c:${valor.id}`)) return;
-  log(`[${c.nome}] comentário de @${autor.username || autor.id}: "${valor.text}"`);
-  registrar(contaId, autor.id, "gatilho", { username: autor.username, origem: "comentário" });
-  if (c.direto) await enviarMensagem2(contaId, autor.id, { comment_id: valor.id });
-  else await enviarMensagem1(contaId, { comment_id: valor.id }, "");
-  log(`[${c.nome}] mensagem 1 enviada (comentário ${valor.id})`);
-  const frases = (c.respostaComentario || []).filter(Boolean);
+  log(`[${c.nome} · ${a.nome}] comentário de @${autor.username || autor.id}: "${valor.text}"`);
+  registrar(contaId, a.id, autor.id, "gatilho", { username: autor.username, origem: "comentário" });
+  if (a.direto) await enviarMensagem2(contaId, a, autor.id, { comment_id: valor.id });
+  else await enviarMensagem1(contaId, a, { comment_id: valor.id }, "");
+  log(`[${c.nome} · ${a.nome}] mensagem 1 enviada (comentário ${valor.id})`);
+  const frases = (a.respostaComentario || []).filter(Boolean);
   if (!frases.length) return;
   try {
     const frase = frases[Math.floor(Math.random() * frases.length)];
@@ -191,18 +207,21 @@ async function tratarComentario(contaId, valor) {
 
 async function tratarMensagem(contaId, ev) {
   const c = contas[contaId];
-  if (!c || c.ativo === false) return;
+  if (!c) return;
   const usuarioId = ev.sender && ev.sender.id;
   if (!usuarioId || usuarioId === contaId) return;
 
+  // clique no botão da mensagem 1 — payload "PASSO_2:<conta>:<automação>" (ou o antigo "PASSO_2:<conta>")
   if (ev.postback) {
     if (jaVisto(`p:${ev.postback.mid || usuarioId + ev.timestamp}`)) return;
-    if (ev.postback.payload === "PASSO_2:" + contaId) {
-      log(`[${c.nome}] ${usuarioId} clicou em "${c.mensagem1.botao}"`);
-      registrar(contaId, usuarioId, "botao");
-      await enviarMensagem2(contaId, usuarioId);
-      log(`[${c.nome}] mensagem 2 enviada para ${usuarioId}`);
-    }
+    const [tipo, conta, autoId] = String(ev.postback.payload || "").split(":");
+    if (tipo !== "PASSO_2" || conta !== contaId) return;
+    const a = acharAutomacao(contaId, autoId);
+    if (!a) return;
+    log(`[${c.nome} · ${a.nome}] ${usuarioId} clicou em "${a.mensagem1.botao}"`);
+    registrar(contaId, a.id, usuarioId, "botao");
+    await enviarMensagem2(contaId, a, usuarioId);
+    log(`[${c.nome} · ${a.nome}] mensagem 2 enviada para ${usuarioId}`);
     return;
   }
 
@@ -211,15 +230,15 @@ async function tratarMensagem(contaId, ev) {
   if (jaVisto(`m:${msg.mid}`)) return;
 
   const ehStory = !!(msg.reply_to && msg.reply_to.story);
-  const palavras = ehStory ? c.gatilhos.story : c.gatilhos.dm;
-  if (!temPalavra(msg.text, palavras)) return;
+  const a = c.automacoes.find((x) => x.ativo !== false && temPalavra(msg.text, ehStory ? x.gatilhos.story : x.gatilhos.dm));
+  if (!a) return;
 
-  log(`[${c.nome}] ${ehStory ? "resposta ao story" : "DM"} de ${usuarioId}: "${msg.text}"`);
+  log(`[${c.nome} · ${a.nome}] ${ehStory ? "resposta ao story" : "DM"} de ${usuarioId}: "${msg.text}"`);
   const p = await perfil(contaId, usuarioId);
-  registrar(contaId, usuarioId, "gatilho", { ...p, origem: ehStory ? "story" : "DM" });
-  if (c.direto) await enviarMensagem2(contaId, usuarioId, null, p.nome);
-  else await enviarMensagem1(contaId, { id: usuarioId }, p.nome);
-  log(`[${c.nome}] mensagem 1 enviada para ${usuarioId}`);
+  registrar(contaId, a.id, usuarioId, "gatilho", { ...p, origem: ehStory ? "story" : "DM" });
+  if (a.direto) await enviarMensagem2(contaId, a, usuarioId, null, p.nome);
+  else await enviarMensagem1(contaId, a, { id: usuarioId }, p.nome);
+  log(`[${c.nome} · ${a.nome}] mensagem 1 enviada para ${usuarioId}`);
 }
 
 async function processarWebhook(payload) {
@@ -287,20 +306,29 @@ function json(res, status, dados) {
 
 function numeros() {
   const r = {};
-  for (const id of Object.keys(contas)) r[id] = { gatilho: 0, botao: 0, link: 0, hoje: 0 };
   const hoje = new Date().toISOString().slice(0, 10);
+  for (const [id, c] of Object.entries(contas)) {
+    r[id] = { hoje: 0, autos: {} };
+    for (const a of c.automacoes) r[id].autos[a.id] = { gatilho: 0, botao: 0, link: 0 };
+  }
   for (const ct of Object.values(contatos)) {
     const n = r[ct.conta];
     if (!n) continue;
-    if (ct.etapas.gatilho) n.gatilho++;
-    if (ct.etapas.botao) n.botao++;
-    if (ct.etapas.link) n.link++;
     if ((ct.ultimo || "").startsWith(hoje)) n.hoje++;
+    // contatos antigos (antes de existir mais de uma automação) contam na primeira
+    const autos = ct.autos || { [contas[ct.conta].automacoes[0]?.id]: ct.etapas };
+    for (const [aid, et] of Object.entries(autos)) {
+      const na = n.autos[aid];
+      if (!na) continue;
+      if (et.gatilho) na.gatilho++;
+      if (et.botao) na.botao++;
+      if (et.link) na.link++;
+    }
   }
   return r;
 }
 
-function limparAutomacao(a, antiga) {
+function limparAutomacao(a, id) {
   const lista = (v) =>
     (Array.isArray(v) ? v : String(v || "").split(","))
       .map((s) => String(s).trim())
@@ -308,7 +336,8 @@ function limparAutomacao(a, antiga) {
       .slice(0, 20);
   const txt = (v, max) => String(v || "").slice(0, max);
   return {
-    nome: antiga.nome,
+    id,
+    nome: txt(a.nome, 40) || "Sem nome",
     ativo: a.ativo !== false,
     direto: !!a.direto,
     gatilhos: {
@@ -359,14 +388,42 @@ async function rotasPainel(req, res, url) {
     for (const id of Object.keys(contas)) tokens[id] = !!tokenDe(id);
     return json(res, 200, { contas, numeros: numeros(), contatos: Object.values(contatos), tokens });
   }
-  const m = url.pathname.match(/^\/painel\/api\/automacao\/(\d+)$/);
+  // salvar / excluir uma automação, ou criar uma nova
+  const m = url.pathname.match(/^\/painel\/api\/conta\/(\d+)\/(nova|automacao\/([\w-]+)(\/excluir)?)$/);
   if (req.method === "POST" && m && contas[m[1]]) {
+    const c = contas[m[1]];
     try {
+      if (m[2] === "nova") {
+        const nova = limparAutomacao(
+          {
+            nome: "Nova automação",
+            ativo: false,
+            gatilhos: { comentario: [], story: [], dm: [] },
+            mensagem1: { texto: "Oiee {nome} ✨\n\n", botao: "Quero sim" },
+            mensagem2: { texto: "", botao: "Quero garantir", link: "https://" },
+            etiqueta: "",
+            respostaComentario: ["Te mandei no direct! ✨", "Corre no direct que te mandei 💌"],
+          },
+          "a" + crypto.randomBytes(3).toString("hex")
+        );
+        c.automacoes.push(nova);
+        salvarAutomacoes();
+        log(`[${c.nome}] nova automação criada pelo painel`);
+        return json(res, 200, { ok: true, automacao: nova });
+      }
+      const i = c.automacoes.findIndex((a) => a.id === m[3]);
+      if (i < 0) return json(res, 404, { ok: false });
+      if (m[4]) {
+        const [fora] = c.automacoes.splice(i, 1);
+        salvarAutomacoes();
+        log(`[${c.nome}] automação "${fora.nome}" excluída pelo painel`);
+        return json(res, 200, { ok: true });
+      }
       const dados = JSON.parse((await lerCorpo(req)).toString("utf8"));
-      contas[m[1]] = limparAutomacao(dados, contas[m[1]]);
+      c.automacoes[i] = limparAutomacao(dados, m[3]);
       salvarAutomacoes();
-      log(`[${contas[m[1]].nome}] automação editada pelo painel`);
-      return json(res, 200, { ok: true, automacao: contas[m[1]] });
+      log(`[${c.nome}] automação "${c.automacoes[i].nome}" editada pelo painel`);
+      return json(res, 200, { ok: true, automacao: c.automacoes[i] });
     } catch (e) {
       return json(res, 400, { ok: false, erro: e.message });
     }
@@ -425,12 +482,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   // clique no link da mensagem 2: registra a etiqueta e redireciona para a página de venda
-  const m = url.pathname.match(/^\/r\/(\d+)\/([\w-]+)$/);
+  // /r/<conta>/<automação>/<usuário>  (e o formato antigo /r/<conta>/<usuário>)
+  const m = url.pathname.match(/^\/r\/(\d+)\/([\w-]+)(?:\/([\w-]+))?$/);
   if (req.method === "GET" && m && contas[m[1]]) {
-    const c = contas[m[1]];
-    registrar(m[1], m[2], "link", { etiqueta: c.etiqueta });
-    log(`[${c.nome}] ${m[2]} clicou no link → etiqueta ${c.etiqueta}`);
-    res.writeHead(302, { Location: c.mensagem2.link });
+    const autoId = m[3] ? m[2] : null;
+    const usuarioId = m[3] || m[2];
+    const a = acharAutomacao(m[1], autoId) || contas[m[1]].automacoes[0];
+    if (!a) {
+      res.writeHead(404);
+      return res.end();
+    }
+    registrar(m[1], a.id, usuarioId, "link", { etiqueta: a.etiqueta });
+    log(`[${contas[m[1]].nome} · ${a.nome}] ${usuarioId} clicou no link → etiqueta ${a.etiqueta}`);
+    res.writeHead(302, { Location: a.mensagem2.link });
     return res.end();
   }
 
