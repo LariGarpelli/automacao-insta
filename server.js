@@ -202,7 +202,7 @@ async function processarWebhook(payload) {
           await tratarComentario(contaId, ch.value || {});
         }
       }
-      for (const ev of entry.messaging || []) {
+      for (const ev of    [...(entry.messaging || []), ...(entry.standby || [])]) {
         await tratarMensagem(contaId, ev);
       }
     } catch (e) {
