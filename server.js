@@ -228,6 +228,10 @@ async function tratarMensagem(contaId, ev) {
   const msg = ev.message;
   if (!msg || msg.is_echo || !msg.text) return;
   if (jaVisto(`m:${msg.mid}`)) return;
+  const chaveTexto = `t:${contaId}:${usuarioId}:${msg.text}`;
+  const ultimo = vistos.get(chaveTexto);
+  if (ev._consulta && ultimo && Date.now() - ultimo < 120e3) return; // já tratada pelo webhook agora há pouco
+  vistos.set(chaveTexto, Date.now());
 
   const ehStory = !!(msg.reply_to && msg.reply_to.story);
   const a = c.automacoes.find((x) => x.ativo !== false && temPalavra(msg.text, ehStory ? x.gatilhos.story : x.gatilhos.dm));
@@ -260,6 +264,7 @@ async function processarWebhook(payload) {
           await tratarComentario(contaId, ch.value || {});
         }
       }
+      if ((entry.messaging || []).length || (entry.standby || []).length) recebeDmPorWebhook[contaId] = true;
       for (const ev of [...(entry.messaging || []), ...(entry.standby || [])]) {
         await tratarMensagem(contaId, ev);
       }
@@ -524,6 +529,36 @@ server.listen(PORT, () => {
     if (t) assinarWebhook(id, c.nome, t);
   }
 });
+
+// Plano B: se a Meta não avisar uma DM pelo webhook, o servidor confere a caixa de entrada a cada 20 s.
+// Só olha mensagens que chegaram depois que o servidor ligou; a mesma DM nunca dispara duas vezes.
+const INICIO = Date.now();
+const errosConsulta = {};
+const recebeDmPorWebhook = {}; // perfis cujas DMs já chegam pelo webhook não precisam do plano B
+async function consultarDMs() {
+  for (const [id, c] of Object.entries(contas)) {
+    if (!tokenDe(id) || recebeDmPorWebhook[id]) continue;
+    try {
+      const r = await chamarApi(id, `/${id}/conversations?platform=instagram&fields=updated_time,messages.limit(5){id,message,from,created_time}&limit=10`);
+      for (const conv of r.data || []) {
+        if (new Date(conv.updated_time).getTime() < INICIO - 60e3) continue;
+        const msgs = ((conv.messages && conv.messages.data) || []).slice().reverse();
+        for (const m of msgs) {
+          if (!m.message || !m.from || String(m.from.id) === id) continue;
+          if (new Date(m.created_time).getTime() < INICIO) continue;
+          if (vistos.has(`m:${m.id}`)) continue;
+          log(`[${c.nome}] DM encontrada na caixa de entrada (sem webhook) de ${m.from.id}: "${m.message}"`);
+          await tratarMensagem(id, { _consulta: true, sender: { id: String(m.from.id) }, message: { mid: m.id, text: m.message } });
+        }
+      }
+      errosConsulta[id] = 0;
+    } catch (e) {
+      const n = (errosConsulta[id] = (errosConsulta[id] || 0) + 1);
+      if (n === 1 || n % 30 === 0) log(`[${c.nome}] não consegui consultar a caixa de entrada: ${e.message.slice(0, 300)}`);
+    }
+  }
+}
+setInterval(consultarDMs, 20e3);
 
 // Pede para a Meta mandar comentários e DMs deste perfil para o app (e mostra o que ficou assinado)
 async function assinarWebhook(id, nome, token) {
