@@ -521,5 +521,27 @@ server.listen(PORT, () => {
   for (const [id, c] of Object.entries(contas)) {
     const t = tokenDe(id);
     log(`perfil @${c.nome}: ${t ? `token ok (${t.slice(0, 3)}…, ${t.length} caracteres)` : "SEM TOKEN (TOKEN_" + id + ")"}`);
+    if (t) assinarWebhook(id, c.nome, t);
   }
 });
+
+// Pede para a Meta mandar comentários e DMs deste perfil para o app (e mostra o que ficou assinado)
+async function assinarWebhook(id, nome, token) {
+  const campos = "comments,messages,messaging_postbacks";
+  for (const alvo of [id, "me"]) {
+    try {
+      const url = `${apiDe(token)}/${alvo}/subscribed_apps?subscribed_fields=${campos}&access_token=${encodeURIComponent(token)}`;
+      const r = await fetch(url, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && !j.error) {
+        const g = await fetch(`${apiDe(token)}/${alvo}/subscribed_apps?access_token=${encodeURIComponent(token)}`);
+        const gj = await g.json().catch(() => ({}));
+        log(`perfil @${nome}: assinatura de webhook ok · ${JSON.stringify(gj.data || gj)}`);
+        return;
+      }
+      log(`perfil @${nome}: assinatura via /${alvo} falhou · ${(j.error && j.error.message) || r.status}`);
+    } catch (e) {
+      log(`perfil @${nome}: assinatura via /${alvo} falhou · ${e.message}`);
+    }
+  }
+}
