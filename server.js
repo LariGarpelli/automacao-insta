@@ -231,7 +231,11 @@ async function tratarMensagem(contaId, ev) {
 
   const ehStory = !!(msg.reply_to && msg.reply_to.story);
   const a = c.automacoes.find((x) => x.ativo !== false && temPalavra(msg.text, ehStory ? x.gatilhos.story : x.gatilhos.dm));
-  if (!a) return;
+  if (!a) {
+    const lista = c.automacoes.map((x) => `${x.nome}${x.ativo === false ? " (desligada)" : ""}: [${((ehStory ? x.gatilhos.story : x.gatilhos.dm) || []).join(", ")}]`).join(" | ");
+    log(`[${c.nome}] ${ehStory ? "resposta ao story" : "DM"} de ${usuarioId} sem palavra-chave: "${msg.text}" — gatilhos de ${ehStory ? "story" : "DM"}: ${lista}`);
+    return;
+  }
 
   log(`[${c.nome} · ${a.nome}] ${ehStory ? "resposta ao story" : "DM"} de ${usuarioId}: "${msg.text}"`);
   const p = await perfil(contaId, usuarioId);
@@ -244,6 +248,8 @@ async function tratarMensagem(contaId, ev) {
 async function processarWebhook(payload) {
   for (const entry of payload.entry || []) {
     const contaId = String(entry.id);
+    const tipos = [...(entry.changes || []).map((ch) => ch.field), ...(entry.messaging || []).map(() => "messaging"), ...(entry.standby || []).map(() => "standby")];
+    log(`webhook recebido · conta ${contaId}${contas[contaId] ? ` (@${contas[contaId].nome})` : ""} · ${tipos.join(", ") || "vazio"}`);
     if (!contas[contaId]) {
       log(`evento de conta não configurada: ${contaId}`);
       continue;
