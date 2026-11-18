@@ -205,6 +205,20 @@ async function tratarComentario(contaId, valor) {
   }
 }
 
+// Quando o clique no botão chega como texto (ex.: "Simm ✨" lido pelo Plano B), tratamos como clique.
+const mensagem2Enviada = new Map(); // "conta:usuario:automação" -> quando a mensagem 2 foi enviada
+function jaRecebeuMensagem2(contaId, usuarioId, autoId) {
+  const t = mensagem2Enviada.get(`${contaId}:${usuarioId}:${autoId}`);
+  return t && Date.now() - t < 10 * 60e3;
+}
+function marcarMensagem2(contaId, usuarioId, autoId) {
+  mensagem2Enviada.set(`${contaId}:${usuarioId}:${autoId}`, Date.now());
+}
+function textoDoBotao(texto, botao) {
+  const limpar = (x) => normalizar(x).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  return !!botao && limpar(texto) !== "" && limpar(texto) === limpar(botao);
+}
+
 async function tratarMensagem(contaId, ev) {
   const c = contas[contaId];
   if (!c) return;
@@ -218,6 +232,8 @@ async function tratarMensagem(contaId, ev) {
     if (tipo !== "PASSO_2" || conta !== contaId) return;
     const a = acharAutomacao(contaId, autoId);
     if (!a) return;
+    if (jaRecebeuMensagem2(contaId, usuarioId, a.id)) return;
+    marcarMensagem2(contaId, usuarioId, a.id);
     log(`[${c.nome} · ${a.nome}] ${usuarioId} clicou em "${a.mensagem1.botao}"`);
     registrar(contaId, a.id, usuarioId, "botao");
     await enviarMensagem2(contaId, a, usuarioId);
@@ -234,6 +250,19 @@ async function tratarMensagem(contaId, ev) {
   vistos.set(chaveTexto, Date.now());
 
   const ehStory = !!(msg.reply_to && msg.reply_to.story);
+
+  // texto igual ao botão da mensagem 1 ("Simm ✨") = a pessoa clicou no botão
+  const clicada = !ehStory && c.automacoes.find((x) => x.ativo !== false && !x.direto && x.mensagem1 && textoDoBotao(msg.text, x.mensagem1.botao));
+  if (clicada) {
+    if (jaRecebeuMensagem2(contaId, usuarioId, clicada.id)) return;
+    marcarMensagem2(contaId, usuarioId, clicada.id);
+    log(`[${c.nome} · ${clicada.nome}] ${usuarioId} clicou em "${clicada.mensagem1.botao}" (chegou como texto)`);
+    registrar(contaId, clicada.id, usuarioId, "botao");
+    const pb = await perfil(contaId, usuarioId);
+    await enviarMensagem2(contaId, clicada, usuarioId, null, pb.nome);
+    log(`[${c.nome} · ${clicada.nome}] mensagem 2 enviada para ${usuarioId}`);
+    return;
+  }
   const a = c.automacoes.find((x) => x.ativo !== false && temPalavra(msg.text, ehStory ? x.gatilhos.story : x.gatilhos.dm));
   if (!a) {
     const lista = c.automacoes.map((x) => `${x.nome}${x.ativo === false ? " (desligada)" : ""}: [${((ehStory ? x.gatilhos.story : x.gatilhos.dm) || []).join(", ")}]`).join(" | ");
