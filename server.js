@@ -194,6 +194,7 @@ async function tratarComentario(contaId, valor) {
   if (a.direto) await enviarMensagem2(contaId, a, autor.id, { comment_id: valor.id });
   else await enviarMensagem1(contaId, a, { comment_id: valor.id }, "");
   log(`[${c.nome} · ${a.nome}] mensagem 1 enviada (comentário ${valor.id})`);
+  modoRapido(contaId);
   const frases = (a.respostaComentario || []).filter(Boolean);
   if (!frases.length) return;
   try {
@@ -276,6 +277,7 @@ async function tratarMensagem(contaId, ev) {
   if (a.direto) await enviarMensagem2(contaId, a, usuarioId, null, p.nome);
   else await enviarMensagem1(contaId, a, { id: usuarioId }, p.nome);
   log(`[${c.nome} · ${a.nome}] mensagem 1 enviada para ${usuarioId}`);
+  modoRapido(contaId);
 }
 
 async function processarWebhook(payload) {
@@ -564,9 +566,8 @@ server.listen(PORT, () => {
 const INICIO = Date.now();
 const errosConsulta = {};
 const recebeDmPorWebhook = {}; // perfis cujas DMs já chegam pelo webhook não precisam do plano B
-async function consultarDMs() {
-  for (const [id, c] of Object.entries(contas)) {
-    if (!tokenDe(id) || recebeDmPorWebhook[id]) continue;
+async function consultarConta(id, c) {
+  {
     try {
       const r = await chamarApi(id, `/${id}/conversations?platform=instagram&fields=updated_time,messages.limit(5){id,message,from,created_time}&limit=10`);
       for (const conv of r.data || []) {
@@ -587,7 +588,24 @@ async function consultarDMs() {
     }
   }
 }
-setInterval(consultarDMs, 20e3);
+// Normalmente confere a cada 20 s. Logo depois de mandar a mensagem 1, confere a cada 3 s
+// por 3 minutos, para o "Simm ✨" ser respondido na hora.
+const rapidoAte = {};
+const ultimaConsulta = {};
+const consultando = {};
+function modoRapido(contaId) {
+  rapidoAte[contaId] = Date.now() + 3 * 60e3;
+}
+setInterval(async () => {
+  for (const [id, c] of Object.entries(contas)) {
+    if (!tokenDe(id) || recebeDmPorWebhook[id] || consultando[id]) continue;
+    const intervalo = Date.now() < (rapidoAte[id] || 0) ? 3e3 : 20e3;
+    if (Date.now() - (ultimaConsulta[id] || 0) < intervalo) continue;
+    ultimaConsulta[id] = Date.now();
+    consultando[id] = true;
+    consultarConta(id, c).finally(() => (consultando[id] = false));
+  }
+}, 1e3);
 
 // Pede para a Meta mandar comentários e DMs deste perfil para o app (e mostra o que ficou assinado)
 async function assinarWebhook(id, nome, token) {
