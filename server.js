@@ -588,7 +588,7 @@ async function consultarConta(id, c) {
     }
   }
 }
-// Normalmente confere a cada 20 s. Logo depois de mandar a mensagem 1, confere a cada 3 s
+// Normalmente confere a cada 10 s. Logo depois de mandar a mensagem 1, confere a cada 3 s
 // por 3 minutos, para o "Simm ✨" ser respondido na hora.
 const rapidoAte = {};
 const ultimaConsulta = {};
@@ -599,7 +599,7 @@ function modoRapido(contaId) {
 setInterval(async () => {
   for (const [id, c] of Object.entries(contas)) {
     if (!tokenDe(id) || recebeDmPorWebhook[id] || consultando[id]) continue;
-    const intervalo = Date.now() < (rapidoAte[id] || 0) ? 3e3 : 20e3;
+    const intervalo = Date.now() < (rapidoAte[id] || 0) ? 3e3 : 10e3;
     if (Date.now() - (ultimaConsulta[id] || 0) < intervalo) continue;
     ultimaConsulta[id] = Date.now();
     consultando[id] = true;
